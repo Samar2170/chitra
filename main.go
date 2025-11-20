@@ -22,6 +22,7 @@ type Todo struct {
 	Name        string `gorm:"not null"`
 	Details     string
 	Priority    string `gorm:"default:'medium'"`
+	Deadline    time.Time
 	CreatedAt   time.Time
 	Completed   bool `gorm:"default:false"`
 	CompletedAt time.Time
@@ -101,7 +102,7 @@ func main() {
 
 Commands:
 /list - Show your todos
-/add Buy groceries, Milk and bread, high - Add new todo
+/add Buy groceries, Milk and bread, high, deadline - Add new todo
 /get 5 - View todo by ID
 /done 5 - Mark as completed
 
@@ -120,7 +121,18 @@ Your todos are saved forever!`
 			response := "*Your Active Todos:*\n\n"
 			for _, t := range todos {
 				emoji := priorityEmoji(t.Priority)
-				response += fmt.Sprintf("%s *%d.* %s\n_%s_\n\n", emoji, t.ID, escape(t.Name), escape(t.Details))
+
+				response += fmt.Sprintf("%s *%d.* %s\n_%s  ", emoji, t.ID, escape(t.Name), escape(t.Details))
+
+				if t.Deadline.IsZero() {
+					response += "\n\n"
+				} else {
+					deadline := t.Deadline.Format("02-01-2006")
+					y, m, d := DateDiff(time.Now(), t.Deadline)
+
+					response += fmt.Sprintf("%s  %s\n", deadline, FormatDiff(y, int(m), d))
+				}
+
 			}
 
 			// Also show completed count
@@ -141,15 +153,16 @@ Your todos are saved forever!`
 				continue
 			}
 
-			parts := strings.SplitN(args, ",", 3)
-			if len(parts) != 3 {
-				bot.Send(tgbotapi.NewMessage(chatID, "Format: Name, Details, priority\nExample: /add Call John, Discuss project timeline, high"))
+			parts := strings.SplitN(args, ",", 4)
+			if len(parts) != 4 {
+				bot.Send(tgbotapi.NewMessage(chatID, "Format: Name, Details, priority, deadline\nExample: /add Call John, Discuss project timeline, high"))
 				continue
 			}
 
 			name := strings.TrimSpace(parts[0])
 			details := strings.TrimSpace(parts[1])
 			priority := strings.ToLower(strings.TrimSpace(parts[2]))
+			deadLineStr := strings.TrimSpace(parts[3])
 
 			if name == "" {
 				bot.Send(tgbotapi.NewMessage(chatID, "Todo name cannot be empty!"))
@@ -160,6 +173,14 @@ Your todos are saved forever!`
 				bot.Send(tgbotapi.NewMessage(chatID, "Priority must be: low, medium, or high"))
 				continue
 			}
+			var deadline time.Time
+			if deadLineStr != "" {
+				deadline, err = ParseDeadline(deadLineStr)
+				if err != nil {
+					bot.Send(tgbotapi.NewMessage(chatID, "Invalid deadline"))
+					continue
+				}
+			}
 
 			todo := Todo{
 				UserID:    userID,
@@ -167,6 +188,7 @@ Your todos are saved forever!`
 				Details:   details,
 				Priority:  priority,
 				CreatedAt: time.Now(),
+				Deadline:  deadline,
 			}
 
 			if err := db.Create(&todo).Error; err != nil {
@@ -253,13 +275,13 @@ Your todos are saved forever!`
 func priorityEmoji(p string) string {
 	switch p {
 	case "high":
-		return "High Priority"
+		return "🔴"
 	case "medium":
-		return "Medium Priority"
+		return "🟡"
 	case "low":
-		return "Low Priority"
+		return "🟢"
 	default:
-		return "Medium Priority"
+		return "🟡"
 	}
 }
 
