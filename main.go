@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -45,8 +46,22 @@ func initDB() {
 }
 
 func main() {
+	var err error
+	args := os.Args
+	if len(args) > 1 && (args[1] == "-p" || args[1] == "--prod") {
+		currentFile, err := os.Executable()
+		if err != nil {
+			panic(err)
+		}
+		ProjectBaseDir := filepath.Dir(currentFile)
+		err = godotenv.Load(ProjectBaseDir + "/.env")
+	} else {
+		err = godotenv.Load()
+	}
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
 	initDB()
-	err := godotenv.Load()
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
